@@ -68,7 +68,7 @@ const FamilyDashboard = () => {
   };
 
   const formatSeconds = (date) => {
-    return date.toLocaleTimeString('pl-PL', { second: '2-digit' });
+    return date.getSeconds().toString().padStart(2, '0');
   };
 
   const formatDate = (date) => {
