@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import fs from 'fs/promises';
 import path from 'path';
@@ -142,14 +143,24 @@ function isAllDayEvent(event) {
   return false;
 }
 
+function isBirthdayCalendar(calendar) {
+  const name = (calendar.displayName || '').toLowerCase();
+  return name.includes('birthday') || name.includes('urodzin');
+}
+
 function expandRecurringEvents(event, rangeStart, rangeEnd) {
   if (!event.rrule) return [event];
 
   try {
     const startDate = parseEventDate(event.start);
-    const endDate = parseEventDate(event.end);
+    let endDate = parseEventDate(event.end);
 
-    if (!startDate || !endDate) return [];
+    if (!startDate) return [];
+
+    // Birthday events use DURATION:P1D instead of DTEND
+    if (!endDate) {
+      endDate = new Date(startDate.getTime() + 24 * 60 * 60 * 1000);
+    }
 
     const duration = endDate.getTime() - startDate.getTime();
     const occurrences = [];
@@ -170,6 +181,16 @@ function expandRecurringEvents(event, rangeStart, rangeEnd) {
       const freq = event.rrule.freq || event.rrule.options?.freq;
       const interval = event.rrule.interval || event.rrule.options?.interval || 1;
       let current = new Date(startDate);
+
+      // For yearly events (birthdays), jump directly to the relevant year
+      // instead of iterating year by year from the birth year
+      if (freq === 'YEARLY' || freq === 0) {
+        const yearsDiff = rangeStart.getFullYear() - current.getFullYear();
+        if (yearsDiff > 0) {
+          current.setFullYear(current.getFullYear() + Math.floor(yearsDiff / interval) * interval);
+        }
+      }
+
       let count = 0;
 
       while (current <= rangeEnd && count < 100) {
@@ -239,13 +260,14 @@ app.get('/api/calendar', async (req, res) => {
 
       for (const calendar of calendars) {
         try {
-          const calendarObjects = await client.fetchCalendarObjects({
-            calendar: calendar,
-            timeRange: {
+          const fetchOptions = { calendar };
+          if (!isBirthdayCalendar(calendar)) {
+            fetchOptions.timeRange = {
               start: monday.toISOString(),
               end: twoWeeksLater.toISOString()
-            }
-          });
+            };
+          }
+          const calendarObjects = await client.fetchCalendarObjects(fetchOptions);
 
           for (const obj of calendarObjects) {
             try {
