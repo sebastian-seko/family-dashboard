@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.git/
+.env
+docker-compose.yml
+docker-compose.*.yml
+backgrounds/*
+!backgrounds/.gitkeep
+*.md
+.gitignore
+setup.ps1
